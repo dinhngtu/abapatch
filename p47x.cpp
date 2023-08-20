@@ -1,6 +1,7 @@
 #define WIN32_LEAN_AND_MEAN
 
 #include <system_error>
+#include <vector>
 #include <string>
 #include <sstream>
 #include <functional>
@@ -22,6 +23,12 @@ static constexpr uint32_t P47_MEM_LINESMOOTH_CALL = 0x0040bc84;
 static constexpr uint32_t P47_VAL_GLENABLE = 0x000212fa;
 static constexpr uint32_t P47_VAL_GLDISABLE = 0x00021300;
 
+struct p47x_options {
+    float scale = 1.0f;
+    float lwscale = 1.0f;
+    bool nosmooth = false;
+};
+
 class cleanup {
 public:
     using cb_type = std::function<void()>;
@@ -41,7 +48,7 @@ private:
 };
 
 template <typename T>
-bool proc_cmpxchg(HANDLE hProcess, LPVOID lpBaseAddress, T expected, T desired) {
+static bool proc_cmpxchg(HANDLE hProcess, LPVOID lpBaseAddress, T expected, T desired) {
     T buf{};
     if (!ReadProcessMemory(hProcess, lpBaseAddress, &buf, sizeof(T), NULL)) {
         throw std::system_error(GetLastError(), std::system_category(), "ReadProcessMemory");
@@ -56,12 +63,11 @@ bool proc_cmpxchg(HANDLE hProcess, LPVOID lpBaseAddress, T expected, T desired) 
     return true;
 }
 
-std::wstring make_cmdline(const std::wstring& exe, int argc, wchar_t** argv) {
+static std::wstring make_cmdline(const std::wstring& exe, const std::vector<std::wstring>& args) {
     std::wstringstream cmdbuf;
     cmdbuf << exe;
-    for (int i = 1; i < argc; i++) {
+    for (const auto& arg : args) {
         cmdbuf << L" ";
-        auto arg = std::wstring(argv[i]);
         auto space = arg.find(L' ') != arg.npos;
         if (space) {
             cmdbuf << L"\"";
@@ -79,57 +85,103 @@ std::wstring make_cmdline(const std::wstring& exe, int argc, wchar_t** argv) {
     return cmdbuf.str();
 }
 
-int wmain(int argc, wchar_t** argv) {
-    STARTUPINFOW si{};
-    si.cb = sizeof(si);
-    PROCESS_INFORMATION pi{};
-
-    std::wstring exe{ L"p47.exe" };
-    auto cmdline = make_cmdline(exe, argc, argv);
-    auto res = CreateProcessW(exe.c_str(), cmdline.data(), NULL, NULL, FALSE, CREATE_SUSPENDED, NULL, NULL, &si, &pi);
-    if (!res) {
-        throw std::system_error(GetLastError(), std::system_category(), "CreateProcess");
+static p47x_options parse_args(int argc, wchar_t** argv, std::vector<std::wstring>& pargs)
+{
+    p47x_options opts;
+    int i = 1;
+    while (i < argc) {
+        auto arg = std::wstring(argv[i]);
+        if (arg == L"-scale" && i < argc - 1) {
+            arg = std::wstring(argv[++i]);
+            opts.scale = std::stof(arg);
+        }
+        else if (arg == L"-lwscale" && i < argc - 1) {
+            arg = std::wstring(argv[++i]);
+            opts.lwscale = std::stof(arg);
+        }
+        else if (arg == L"-nosmooth") {
+            opts.nosmooth = true;
+        }
+        else {
+            pargs.push_back(arg);
+        }
+        i++;
     }
-    auto c_pi = cleanup([&] {
-        CloseHandle(pi.hProcess);
-        CloseHandle(pi.hThread);
-        });
+    return opts;
+}
 
+int wmain(int argc, wchar_t** argv) {
     try {
+        std::vector<std::wstring> pargs;
+        p47x_options opts;
+        try {
+            opts = parse_args(argc, argv, pargs);
+        }
+        catch (const std::exception&) {
+            throw std::runtime_error("Usage: p47x [-scale scale] [-lwscale lwscale] [-nosmooth] [p47_args]");
+        }
+
+        std::wstring exe = L"p47.exe";
+        auto cmdline = make_cmdline(exe, pargs);
+
+        STARTUPINFOW si{};
+        si.cb = sizeof(si);
+        PROCESS_INFORMATION pi{};
+        auto res = CreateProcessW(exe.c_str(), cmdline.data(), NULL, NULL, FALSE, CREATE_SUSPENDED, NULL, NULL, &si, &pi);
+        if (!res) {
+            throw std::system_error(GetLastError(), std::system_category(), "CreateProcess");
+        }
+        auto c_pi = cleanup([&] {
+            CloseHandle(pi.hProcess);
+            CloseHandle(pi.hThread);
+            });
+
+        try {
 #if _WIN64
-        WOW64_CONTEXT ctx{};
-        ctx.ContextFlags = WOW64_CONTEXT_INTEGER;
-        if (!Wow64GetThreadContext(pi.hThread, &ctx)) {
-            throw std::system_error(GetLastError(), std::system_category(), "Wow64GetThreadContext");
-        }
+            WOW64_CONTEXT ctx{};
+            ctx.ContextFlags = WOW64_CONTEXT_INTEGER;
+            if (!Wow64GetThreadContext(pi.hThread, &ctx)) {
+                throw std::system_error(GetLastError(), std::system_category(), "Wow64GetThreadContext");
+            }
 #else
-        CONTEXT ctx{};
-        ctx.ContextFlags = CONTEXT_INTEGER;
-        if (!GetThreadContext(pi.hThread, &ctx)) {
-            throw std::system_error(GetLastError(), std::system_category(), "GetThreadContext");
-        }
+            CONTEXT ctx{};
+            ctx.ContextFlags = CONTEXT_INTEGER;
+            if (!GetThreadContext(pi.hThread, &ctx)) {
+                throw std::system_error(GetLastError(), std::system_category(), "GetThreadContext");
+            }
 #endif
 
-        auto real_ep = static_cast<uint32_t>(ctx.Eax);
-        auto loff = real_ep - P47_ENTRYPOINT;
+            auto real_ep = static_cast<uint32_t>(ctx.Eax);
+            auto loff = real_ep - P47_ENTRYPOINT;
 
-        if (!proc_cmpxchg<uint32_t>(pi.hProcess, reinterpret_cast<LPVOID>(loff + P47_MEM_WIDTH), P47_VAL_WIDTH_DEFAULT, P47_VAL_WIDTH_DEFAULT * 2)) {
-            throw std::runtime_error("unexpected value");
-        }
-        if (!proc_cmpxchg<uint32_t>(pi.hProcess, reinterpret_cast<LPVOID>(loff + P47_MEM_HEIGHT), P47_VAL_HEIGHT_DEFAULT, P47_VAL_HEIGHT_DEFAULT * 2)) {
-            throw std::runtime_error("unexpected value");
-        }
-        if (!proc_cmpxchg<float>(pi.hProcess, reinterpret_cast<LPVOID>(loff + P47_MEM_LINEWIDTH), P47_VAL_LINEWIDTH_DEFAULT, P47_VAL_LINEWIDTH_DEFAULT * 2)) {
-            throw std::runtime_error("unexpected value");
-        }
-        if (!proc_cmpxchg<uint32_t>(pi.hProcess, reinterpret_cast<LPVOID>(loff + P47_MEM_LINESMOOTH_CALL), P47_VAL_GLENABLE, P47_VAL_GLDISABLE)) {
-            throw std::runtime_error("unexpected value");
-        }
+            if (opts.scale != 1.0f) {
+                if (!proc_cmpxchg<uint32_t>(pi.hProcess, reinterpret_cast<LPVOID>(loff + P47_MEM_WIDTH), P47_VAL_WIDTH_DEFAULT, static_cast<uint32_t>(P47_VAL_WIDTH_DEFAULT * opts.scale))) {
+                    throw std::runtime_error("unexpected value");
+                }
+                if (!proc_cmpxchg<uint32_t>(pi.hProcess, reinterpret_cast<LPVOID>(loff + P47_MEM_HEIGHT), P47_VAL_HEIGHT_DEFAULT, static_cast<uint32_t>(P47_VAL_HEIGHT_DEFAULT * opts.scale))) {
+                    throw std::runtime_error("unexpected value");
+                }
+            }
+            if (opts.lwscale != 1.0f) {
+                if (!proc_cmpxchg<float>(pi.hProcess, reinterpret_cast<LPVOID>(loff + P47_MEM_LINEWIDTH), P47_VAL_LINEWIDTH_DEFAULT, P47_VAL_LINEWIDTH_DEFAULT * opts.lwscale)) {
+                    throw std::runtime_error("unexpected value");
+                }
+            }
+            if (opts.nosmooth) {
+                if (!proc_cmpxchg<uint32_t>(pi.hProcess, reinterpret_cast<LPVOID>(loff + P47_MEM_LINESMOOTH_CALL), P47_VAL_GLENABLE, P47_VAL_GLDISABLE)) {
+                    throw std::runtime_error("unexpected value");
+                }
+            }
 
-        ResumeThread(pi.hThread);
+            ResumeThread(pi.hThread);
+        }
+        catch (const std::exception&) {
+            TerminateProcess(pi.hProcess, 1);
+            throw;
+        }
     }
     catch (const std::exception& e) {
-        TerminateProcess(pi.hProcess, 1);
+        MessageBoxA(NULL, e.what(), "p47x", MB_OK | MB_ICONERROR);
         return 1;
     }
 

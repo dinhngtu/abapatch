@@ -126,7 +126,7 @@ int wmain(int argc, wchar_t** argv) {
             opts = parse_args(argc, argv, pargs);
         }
         catch (const std::exception&) {
-            throw std::runtime_error("Usage: p47x [-scale scale] [-lwscale lwscale] [-nosmooth] [p47_args]");
+            throw std::runtime_error("Usage: p47x [-scale scale] [-lwscale lwscale] [-nosmooth] [-nobgm] [p47_args]");
         }
 
         std::wstring exe = L"p47.exe";

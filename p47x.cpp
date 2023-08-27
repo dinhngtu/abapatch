@@ -23,7 +23,7 @@ static constexpr uint32_t P47_MEM_LINESMOOTH_CALL = 0x0040bc84;
 static constexpr uint32_t P47_VAL_LINESMOOTH_ENABLE = 0x000212fa;
 static constexpr uint32_t P47_VAL_LINESMOOTH_DISABLE = 0x00021300;
 
-static constexpr uint32_t P47_MEM_PLAYBGM = 0x0041000c;
+static constexpr uint32_t P47_MEM_PLAYBGM = 0x0040d9ac;
 static constexpr uint8_t P47_VAL_PLAYBGM_ENABLE = 0x50;
 static constexpr uint8_t P47_VAL_PLAYBGM_DISABLE = 0xc3;
 

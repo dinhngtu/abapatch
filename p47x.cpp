@@ -20,13 +20,18 @@ static constexpr uint32_t P47_MEM_LINEWIDTH = 0x0040bc75;
 static constexpr float P47_VAL_LINEWIDTH_DEFAULT = 1.0f;
 
 static constexpr uint32_t P47_MEM_LINESMOOTH_CALL = 0x0040bc84;
-static constexpr uint32_t P47_VAL_GLENABLE = 0x000212fa;
-static constexpr uint32_t P47_VAL_GLDISABLE = 0x00021300;
+static constexpr uint32_t P47_VAL_LINESMOOTH_ENABLE = 0x000212fa;
+static constexpr uint32_t P47_VAL_LINESMOOTH_DISABLE = 0x00021300;
+
+static constexpr uint32_t P47_MEM_PLAYBGM = 0x0041000c;
+static constexpr uint8_t P47_VAL_PLAYBGM_ENABLE = 0x50;
+static constexpr uint8_t P47_VAL_PLAYBGM_DISABLE = 0xc3;
 
 struct p47x_options {
     float scale = 1.0f;
     float lwscale = 1.0f;
     bool nosmooth = false;
+    bool nobgm = false;
 };
 
 class cleanup {
@@ -102,6 +107,9 @@ static p47x_options parse_args(int argc, wchar_t** argv, std::vector<std::wstrin
         else if (arg == L"-nosmooth") {
             opts.nosmooth = true;
         }
+        else if (arg == L"-nobgm") {
+            opts.nobgm = true;
+        }
         else {
             pargs.push_back(arg);
         }
@@ -168,7 +176,12 @@ int wmain(int argc, wchar_t** argv) {
                 }
             }
             if (opts.nosmooth) {
-                if (!proc_cmpxchg<uint32_t>(pi.hProcess, reinterpret_cast<LPVOID>(loff + P47_MEM_LINESMOOTH_CALL), P47_VAL_GLENABLE, P47_VAL_GLDISABLE)) {
+                if (!proc_cmpxchg<uint32_t>(pi.hProcess, reinterpret_cast<LPVOID>(loff + P47_MEM_LINESMOOTH_CALL), P47_VAL_LINESMOOTH_ENABLE, P47_VAL_LINESMOOTH_DISABLE)) {
+                    throw std::runtime_error("unexpected value");
+                }
+            }
+            if (opts.nobgm) {
+                if (!proc_cmpxchg<uint8_t>(pi.hProcess, reinterpret_cast<LPVOID>(loff + P47_MEM_PLAYBGM), P47_VAL_PLAYBGM_ENABLE, P47_VAL_PLAYBGM_DISABLE)) {
                     throw std::runtime_error("unexpected value");
                 }
             }

@@ -65,6 +65,9 @@ static void parse_args(int argc, wchar_t** argv, std::wstring& gamename, std::sh
         else if (arg == L"-high") {
             patches.push_back(g->second->get_patch_priority(HIGH_PRIORITY_CLASS));
         }
+        else if (arg == L"-inject") {
+            patches.push_back(g->second->get_patch_inject());
+        }
         else {
             gameargs.push_back(arg);
         }

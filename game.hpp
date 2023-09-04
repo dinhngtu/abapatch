@@ -24,4 +24,5 @@ struct Game {
         throw std::logic_error("unsupported patch");
     }
     virtual std::unique_ptr<GamePatch> get_patch_priority(DWORD priorityClass);
+    virtual std::unique_ptr<GamePatch> get_patch_inject();
 };

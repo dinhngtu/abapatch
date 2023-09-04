@@ -62,6 +62,9 @@ static void parse_args(int argc, wchar_t** argv, std::wstring& gamename, std::sh
         else if (arg == L"-nobgm") {
             patches.push_back(g->second->get_patch_nobgm(true));
         }
+        else if (arg == L"-high") {
+            patches.push_back(g->second->get_patch_priority(HIGH_PRIORITY_CLASS));
+        }
         else {
             gameargs.push_back(arg);
         }
@@ -124,7 +127,7 @@ int wmain(int argc, wchar_t** argv) {
             }
 
             ResumeThread(pi.hThread);
-        }
+            }
         catch (const std::exception&) {
             TerminateProcess(pi.hProcess, 1);
             throw;

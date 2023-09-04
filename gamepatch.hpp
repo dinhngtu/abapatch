@@ -54,3 +54,17 @@ public:
 private:
     std::vector<std::unique_ptr<GamePatch>> _patches;
 };
+
+class PriorityPatch : public GamePatch {
+public:
+    explicit PriorityPatch(DWORD priorityClass) : _priorityClass(priorityClass) {}
+
+    void apply(GameState& lg) override {
+        if (!SetPriorityClass(lg.procinfo.hProcess, _priorityClass)) {
+            throw std::system_error(GetLastError(), std::system_category(), "SetPriorityClass");
+        }
+    }
+
+private:
+    DWORD _priorityClass;
+};

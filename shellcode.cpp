@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 
-typedef HMODULE(_Ret_maybenull_ WINAPI* LoadLibraryWFunc)(_In_ LPCWSTR lpLibFileName);
+typedef HMODULE(_Ret_maybenull_ WINAPI* LoadLibraryFunc)(_In_ LPCSTR lpLibFileName);
 
 template <typename T, size_t N>
 static __declspec(safebuffers) __forceinline bool sc_streq(T(&a)[N], const T* b) {
@@ -37,8 +37,8 @@ __declspec(safebuffers)VOID NTAPI shellcode(
     _In_opt_ PVOID ApcArgument2,
     _In_opt_ PVOID ApcArgument3) {
     wchar_t s_kernel32_dll[] = { 'k', 'e', 'r', 'n', 'e', 'l', '3', '2', '.', 'd', 'l', 'l', 0 };
-    char s_loadlibrary[] = { 'L', 'o', 'a', 'd', 'L', 'i', 'b', 'r', 'a', 'r', 'y', 'W', 0 };
-    wchar_t s_abapatch_dll[] = { 'a', 'b', 'a', 'p', 'a', 't', 'c', 'h', '.', 'd', 'l', 'l', 0 };
+    char s_loadlibrary[] = { 'L', 'o', 'a', 'd', 'L', 'i', 'b', 'r', 'a', 'r', 'y', 'A', 0 };
+    char s_abapatch_dll[] = { 'a', 'b', 'a', 'p', 'a', 't', 'c', 'h', '.', 'd', 'l', 'l', 0 };
 
     auto ppeb = reinterpret_cast<PPEB>(__readfsdword(offsetof(TEB, ProcessEnvironmentBlock)));
     auto link = ppeb->Ldr->InMemoryOrderModuleList.Flink;
@@ -57,7 +57,7 @@ __declspec(safebuffers)VOID NTAPI shellcode(
     if (!k32Base || k32Base->e_magic != IMAGE_DOS_SIGNATURE)
         return;
 
-    LoadLibraryWFunc f_loadLibrary = NULL;
+    LoadLibraryFunc f_loadLibrary = NULL;
     auto k32NtHdr = reinterpret_cast<IMAGE_NT_HEADERS*>(reinterpret_cast<uint8_t*>(k32Base) + k32Base->e_lfanew);
     auto k32DirExport = &(k32NtHdr->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT]);
     auto k32Exports = reinterpret_cast<IMAGE_EXPORT_DIRECTORY*>(reinterpret_cast<uint8_t*>(k32Base) + k32DirExport->VirtualAddress);
@@ -69,7 +69,7 @@ __declspec(safebuffers)VOID NTAPI shellcode(
         if (sc_streq(s_loadlibrary, name)) {
             auto ord = k32NameOrdTable[i];
             auto func = k32FuncTable[ord];
-            f_loadLibrary = reinterpret_cast<LoadLibraryWFunc>(reinterpret_cast<uint8_t*>(k32Base) + func);
+            f_loadLibrary = reinterpret_cast<LoadLibraryFunc>(reinterpret_cast<uint8_t*>(k32Base) + func);
             break;
         }
     }

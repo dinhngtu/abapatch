@@ -35,7 +35,7 @@ public:
         if (!ntQueueApcThread)
             throw std::system_error(GetLastError(), std::system_category(), "GetProcAddress");
 
-        auto shellcodeMem = VirtualAllocEx(lg.procinfo.hProcess, NULL, 4096, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+        auto shellcodeMem = VirtualAllocEx(lg.procinfo.hProcess, NULL, 4096, MEM_COMMIT, PAGE_EXECUTE_READ);
         if (!shellcodeMem)
             throw std::system_error(GetLastError(), std::system_category(), "VirtualAllocEx");
 

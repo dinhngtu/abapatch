@@ -1,15 +1,20 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <bcrypt.h>
+#include <winternl.h>
 #include <cstdlib>
 #include <vector>
 #include <string>
 #include "detours.h"
+
+#pragma comment(lib, "bcrypt.lib")
 
 struct Mix_Music;
 
 typedef Mix_Music* (__cdecl* Mix_LoadMUSFunc)(const char* file);
 typedef int(__cdecl* Mix_PlayMusicFunc)(Mix_Music* music, int loops);
 typedef void(__cdecl* Mix_FreeMusicFunc)(Mix_Music* music);
+typedef int(__cdecl* Mix_VolumeMusicFunc)(int volume);
 
 static Mix_LoadMUSFunc loadmusic = NULL;
 static Mix_PlayMusicFunc playmusic = NULL;
@@ -40,7 +45,10 @@ static void free_musics() {
 
 int my_Mix_PlayMusic(Mix_Music* music, int loops) {
     if (musics.size()) {
-        return playmusic(musics[rand() % musics.size()], loops);
+        uint64_t r;
+        if (!NT_SUCCESS(BCryptGenRandom(NULL, reinterpret_cast<PUCHAR>(&r), sizeof(r), BCRYPT_USE_SYSTEM_PREFERRED_RNG)))
+            r = rand();
+        return playmusic(musics[r % musics.size()], loops);
     }
     else {
         return playmusic(music, loops);
@@ -51,6 +59,9 @@ Mix_Music* my_Mix_LoadMUS(const char* file) {
     static bool inited = false;
     if (!inited) {
         find_musics();
+        auto volmusic = static_cast<Mix_VolumeMusicFunc>(DetourFindFunction("SDL_mixer.dll", "Mix_VolumeMusic"));
+        if (volmusic)
+            volmusic(96);
         inited = true;
     }
     return loadmusic(file);

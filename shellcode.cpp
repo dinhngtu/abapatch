@@ -32,7 +32,9 @@ static __declspec(safebuffers) __forceinline bool sc_strcaseeq(T(&a)[N], const T
     return flag;
 }
 
-__declspec(safebuffers)VOID NTAPI shellcode(
+#pragma section("shcode", read, execute)
+
+__declspec(safebuffers, code_seg("shcode"))VOID NTAPI shellcode(
     _In_opt_ PVOID ApcArgument1,
     _In_opt_ PVOID ApcArgument2,
     _In_opt_ PVOID ApcArgument3) {

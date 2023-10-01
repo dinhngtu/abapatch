@@ -35,19 +35,38 @@ public:
         if (!ntQueueApcThread)
             throw std::system_error(GetLastError(), std::system_category(), "GetProcAddress");
 
-        auto shellcodeMem = VirtualAllocEx(lg.procinfo.hProcess, NULL, 4096, MEM_COMMIT, PAGE_EXECUTE_READ);
+        auto shellcodeSize = getShellcodeSize();
+        if (!shellcodeSize)
+            throw std::runtime_error("cannot find shellcode size");
+
+        auto shellcodeMem = VirtualAllocEx(lg.procinfo.hProcess, NULL, shellcodeSize, MEM_COMMIT, PAGE_EXECUTE_READ);
         if (!shellcodeMem)
             throw std::system_error(GetLastError(), std::system_category(), "VirtualAllocEx");
 
         SIZE_T written;
-        if (!WriteProcessMemory(lg.procinfo.hProcess, shellcodeMem, shellcode, 4096, &written))
+        if (!WriteProcessMemory(lg.procinfo.hProcess, shellcodeMem, shellcode, shellcodeSize, &written))
             throw std::system_error(GetLastError(), std::system_category(), "WriteProcessMemory");
-        if (written != 4096)
+        if (written != shellcodeSize)
             throw std::runtime_error("WriteProcessMemory didn't write enough data");
 
         auto ret = ntQueueApcThread(lg.procinfo.hThread, reinterpret_cast<PPS_APC_ROUTINE>(shellcodeMem), NULL, NULL, NULL);
         if (!NT_SUCCESS(ret))
             throw std::runtime_error("NtQueueApcThread");
+    }
+
+private:
+    DWORD getShellcodeSize() {
+        auto mh = GetModuleHandleW(NULL);
+        if (!mh)
+            throw std::system_error(GetLastError(), std::system_category(), "GetModuleHandleW");
+
+        auto k32Base = reinterpret_cast<IMAGE_DOS_HEADER*>(mh);
+        auto k32NtHdr = reinterpret_cast<IMAGE_NT_HEADERS*>(reinterpret_cast<uint8_t*>(k32Base) + k32Base->e_lfanew);
+        auto sec = IMAGE_FIRST_SECTION(k32NtHdr);
+        for (auto i = 0; i < k32NtHdr->FileHeader.NumberOfSections; i++)
+            if (!strcmp("shcode", reinterpret_cast<const char*>(sec[i].Name)))
+                return sec[i].SizeOfRawData;
+        return 0;
     }
 };
 

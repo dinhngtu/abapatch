@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include <vector>
 #include <string>
 #include <map>
 #include <sstream>
@@ -38,25 +39,22 @@ static const std::map<std::wstring, std::shared_ptr<Game>> supported_games = {
     {std::wstring(L"rr"), std::make_shared<RRootage>()},
 };
 
-static void parse_args(int argc, wchar_t** argv, std::wstring& gamename, std::shared_ptr<Game>& game, std::vector<std::unique_ptr<GamePatch>>& patches, std::vector<std::wstring>& gameargs)
+static void parse_args(int argc, wchar_t** _argv, std::wstring& gamename, std::shared_ptr<Game>& game, std::vector<std::unique_ptr<GamePatch>>& patches, std::vector<std::wstring>& gameargs)
 {
-    if (argc < 2) {
-        throw std::runtime_error("no game name");
-    }
-    gamename = std::wstring(argv[1]);
+    std::vector<wchar_t*> argv(_argv, _argv + argc);
+    gamename = std::wstring(argv.at(1));
     auto g = supported_games.find(gamename);
-    if (g == supported_games.end()) {
+    if (g == supported_games.end())
         throw std::runtime_error("game not supported");
-    }
     int i = 2;
-    while (i < argc) {
-        auto arg = std::wstring(argv[i]);
-        if (arg == L"-scale" && i < argc - 1) {
-            arg = std::wstring(argv[++i]);
+    while (i < argv.size()) {
+        auto arg = std::wstring(argv.at(i));
+        if (arg == L"-scale") {
+            arg = std::wstring(argv.at(++i));
             patches.push_back(g->second->get_patch_scale(std::stof(arg)));
         }
-        else if (arg == L"-lwscale" && i < argc - 1) {
-            arg = std::wstring(argv[++i]);
+        else if (arg == L"-lwscale") {
+            arg = std::wstring(argv.at(++i));
             patches.push_back(g->second->get_patch_lwscale(std::stof(arg)));
         }
         else if (arg == L"-nosmooth") {
@@ -75,10 +73,10 @@ static void parse_args(int argc, wchar_t** argv, std::wstring& gamename, std::sh
             abaPatchInfo.randbgm = true;
         }
         else if (arg == L"-volume") {
-            abaPatchInfo.volume = _wtoi(argv[++i]);
+            abaPatchInfo.volume = _wtoi(argv.at(++i));
         }
         else if (arg == L"-bgmvol") {
-            abaPatchInfo.bgmvol = _wtoi(argv[++i]);
+            abaPatchInfo.bgmvol = _wtoi(argv.at(++i));
         }
         else {
             gameargs.push_back(arg);

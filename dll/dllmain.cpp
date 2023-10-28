@@ -64,6 +64,7 @@ int __cdecl my_Mix_OpenAudio(int frequency, uint16_t format, int channels, int c
             if (volmusic)
                 volmusic(patchinfo->bgmvol);
         }
+        inited = true;
     }
     return ret;
 }

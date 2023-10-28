@@ -3,6 +3,7 @@
 #include <winternl.h>
 #include "game.hpp"
 #include "gamepatch.hpp"
+#include "inject.hpp"
 
 typedef VOID(NTAPI* PPS_APC_ROUTINE)(
     _In_opt_ PVOID ApcArgument1,
@@ -41,15 +42,24 @@ public:
 
         auto shellcodeMem = VirtualAllocEx(lg.procinfo.hProcess, NULL, shellcodeSize, MEM_COMMIT, PAGE_EXECUTE_READ);
         if (!shellcodeMem)
-            throw std::system_error(GetLastError(), std::system_category(), "VirtualAllocEx");
+            throw std::system_error(GetLastError(), std::system_category(), "VirtualAllocEx (shellcode)");
 
         SIZE_T written;
         if (!WriteProcessMemory(lg.procinfo.hProcess, shellcodeMem, shellcode, shellcodeSize, &written))
-            throw std::system_error(GetLastError(), std::system_category(), "WriteProcessMemory");
+            throw std::system_error(GetLastError(), std::system_category(), "WriteProcessMemory (shellcode)");
         if (written != shellcodeSize)
-            throw std::runtime_error("WriteProcessMemory didn't write enough data");
+            throw std::runtime_error("WriteProcessMemory didn't write enough data (shellcode)");
 
-        auto ret = ntQueueApcThread(lg.procinfo.hThread, reinterpret_cast<PPS_APC_ROUTINE>(shellcodeMem), NULL, NULL, NULL);
+        auto argMem = VirtualAllocEx(lg.procinfo.hProcess, NULL, shellcodeSize, MEM_COMMIT, PAGE_READWRITE);
+        if (!argMem)
+            throw std::system_error(GetLastError(), std::system_category(), "VirtualAllocEx (arg)");
+
+        if (!WriteProcessMemory(lg.procinfo.hProcess, argMem, &abaPatchInfo, sizeof(abaPatchInfo), &written))
+            throw std::system_error(GetLastError(), std::system_category(), "WriteProcessMemory (arg)");
+        if (written != sizeof(abaPatchInfo))
+            throw std::runtime_error("WriteProcessMemory didn't write enough data (arg)");
+
+        auto ret = ntQueueApcThread(lg.procinfo.hThread, reinterpret_cast<PPS_APC_ROUTINE>(shellcodeMem), argMem, NULL, NULL);
         if (!NT_SUCCESS(ret))
             throw std::runtime_error("NtQueueApcThread");
     }

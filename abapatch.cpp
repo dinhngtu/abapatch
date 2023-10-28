@@ -6,6 +6,9 @@
 #include "p47.hpp"
 #include "a7xpg.hpp"
 #include "rr.hpp"
+#include "inject.hpp"
+
+AbaPatchInfo abaPatchInfo{};
 
 static std::wstring make_cmdline(const std::wstring& exe, const std::vector<std::wstring>& args) {
     std::wstringstream cmdbuf;
@@ -67,6 +70,15 @@ static void parse_args(int argc, wchar_t** argv, std::wstring& gamename, std::sh
         }
         else if (arg == L"-inject") {
             patches.push_back(g->second->get_patch_inject());
+        }
+        else if (arg == L"-randbgm") {
+            abaPatchInfo.randbgm = true;
+        }
+        else if (arg == L"-volume") {
+            abaPatchInfo.volume = _wtoi(argv[++i]);
+        }
+        else if (arg == L"-bgmvol") {
+            abaPatchInfo.bgmvol = _wtoi(argv[++i]);
         }
         else {
             gameargs.push_back(arg);
@@ -130,7 +142,7 @@ int wmain(int argc, wchar_t** argv) {
             }
 
             ResumeThread(pi.hThread);
-            }
+        }
         catch (const std::exception&) {
             TerminateProcess(pi.hProcess, 1);
             throw;

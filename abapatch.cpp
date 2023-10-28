@@ -47,6 +47,7 @@ static void parse_args(int argc, wchar_t** _argv, std::wstring& gamename, std::s
     if (g == supported_games.end())
         throw std::runtime_error("game not supported");
     int i = 2;
+    bool needs_inject = false;
     while (i < argv.size()) {
         auto arg = std::wstring(argv.at(i));
         if (arg == L"-scale") {
@@ -66,16 +67,16 @@ static void parse_args(int argc, wchar_t** _argv, std::wstring& gamename, std::s
         else if (arg == L"-high") {
             patches.push_back(g->second->get_patch_priority(HIGH_PRIORITY_CLASS));
         }
-        else if (arg == L"-inject") {
-            patches.push_back(g->second->get_patch_inject());
-        }
         else if (arg == L"-randbgm") {
+            needs_inject = true;
             abaPatchInfo.randbgm = true;
         }
         else if (arg == L"-volume") {
+            needs_inject = true;
             abaPatchInfo.volume = _wtoi(argv.at(++i));
         }
         else if (arg == L"-bgmvol") {
+            needs_inject = true;
             abaPatchInfo.bgmvol = _wtoi(argv.at(++i));
         }
         else {
@@ -83,6 +84,8 @@ static void parse_args(int argc, wchar_t** _argv, std::wstring& gamename, std::s
         }
         i++;
     }
+    if (needs_inject)
+        patches.push_back(g->second->get_patch_inject());
 }
 
 int wmain(int argc, wchar_t** argv) {

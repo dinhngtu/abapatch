@@ -37,17 +37,14 @@ static __declspec(safebuffers) __forceinline bool sc_strcaseeq(T(&a)[N], const T
 
 #pragma section("shcode", read, execute)
 
-__declspec(safebuffers, code_seg("shcode"))VOID NTAPI shellcode(
-    _In_opt_ PVOID ApcArgument1,
-    _In_opt_ PVOID ApcArgument2,
-    _In_opt_ PVOID ApcArgument3) {
+__declspec(safebuffers, code_seg("shcode"))VOID NTAPI shellcode(_In_ ULONG_PTR arg) {
     wchar_t s_kernel32_dll[] = { 'k', 'e', 'r', 'n', 'e', 'l', '3', '2', '.', 'd', 'l', 'l', 0 };
     char s_loadlibrary[] = { 'L', 'o', 'a', 'd', 'L', 'i', 'b', 'r', 'a', 'r', 'y', 'A', 0 };
     char s_getprocaddress[] = { 'G', 'e', 't', 'P', 'r', 'o', 'c', 'A', 'd', 'd', 'r', 'e', 's', 's', 0 };
     char s_abapatch_dll[] = { 'a', 'b', 'a', 'p', 'a', 't', 'c', 'h', '.', 'd', 'l', 'l', 0 };
     char s_abapatch[] = { 'a', 'b', 'a', 'p', 'a', 't', 'c', 'h', 0 };
 
-    if (!ApcArgument1)
+    if (!arg)
         return;
 
     auto ppeb = reinterpret_cast<PPEB>(__readfsdword(offsetof(TEB, ProcessEnvironmentBlock)));
@@ -98,5 +95,5 @@ __declspec(safebuffers, code_seg("shcode"))VOID NTAPI shellcode(
     auto abapatchFunc = reinterpret_cast<AbapatchFunc>(f_getprocaddress(hAba, &s_abapatch[0]));
     if (!abapatchFunc)
         return;
-    abapatchFunc(static_cast<AbaPatchInfo*>(ApcArgument1));
+    abapatchFunc(reinterpret_cast<AbaPatchInfo*>(arg));
 }

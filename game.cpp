@@ -5,37 +5,11 @@
 #include "gamepatch.hpp"
 #include "inject.hpp"
 
-typedef VOID(NTAPI* PPS_APC_ROUTINE)(
-    _In_opt_ PVOID ApcArgument1,
-    _In_opt_ PVOID ApcArgument2,
-    _In_opt_ PVOID ApcArgument3
-    );
-
-typedef NTSYSCALLAPI
-NTSTATUS
-(NTAPI* NtQueueApcThreadFunc)(
-    _In_ HANDLE ThreadHandle,
-    _In_ PPS_APC_ROUTINE ApcRoutine,
-    _In_opt_ PVOID ApcArgument1,
-    _In_opt_ PVOID ApcArgument2,
-    _In_opt_ PVOID ApcArgument3
-    );
-
-__declspec(safebuffers)VOID NTAPI shellcode(
-    _In_opt_ PVOID ApcArgument1,
-    _In_opt_ PVOID ApcArgument2,
-    _In_opt_ PVOID ApcArgument3);
+VOID NTAPI shellcode(_In_ ULONG_PTR arg);
 
 class InjectPatch : public GamePatch {
 public:
     void apply(GameState& lg) override {
-        auto ntdll = GetModuleHandleW(L"ntdll.dll");
-        if (!ntdll)
-            throw std::system_error(GetLastError(), std::system_category(), "GetModuleHandleW");
-        auto ntQueueApcThread = reinterpret_cast<NtQueueApcThreadFunc>(GetProcAddress(ntdll, "NtQueueApcThread"));
-        if (!ntQueueApcThread)
-            throw std::system_error(GetLastError(), std::system_category(), "GetProcAddress");
-
         auto shellcodeSize = getShellcodeSize();
         if (!shellcodeSize)
             throw std::runtime_error("cannot find shellcode size");
@@ -59,9 +33,9 @@ public:
         if (written != sizeof(abaPatchInfo))
             throw std::runtime_error("WriteProcessMemory didn't write enough data (arg)");
 
-        auto ret = ntQueueApcThread(lg.procinfo.hThread, reinterpret_cast<PPS_APC_ROUTINE>(shellcodeMem), argMem, NULL, NULL);
-        if (!NT_SUCCESS(ret))
-            throw std::runtime_error("NtQueueApcThread");
+        auto ret = QueueUserAPC(static_cast<PAPCFUNC>(shellcodeMem), lg.procinfo.hThread, reinterpret_cast<ULONG_PTR>(argMem));
+        if (!ret)
+            throw std::system_error(GetLastError(), std::system_category(), "QueueUserAPC");
     }
 
 private:
